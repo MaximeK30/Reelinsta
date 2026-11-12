@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf6ef">
+<title>Partager vers Chorés</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="auth" style="margin-top:12vh">
+    <h1>Chorés</h1>
+    <div class="panel" style="margin-top:16px">
+      <div id="msg" style="font-size:16px;font-weight:600">Envoi en cours…</div>
+      <form id="extra" style="display:none;margin-top:12px">
+        <label>🎵 Musique (si elle n’a pas été trouvée)</label>
+        <input type="text" name="music" placeholder="Titre — Artiste" autocomplete="off">
+        <label>💬 Un mot ?</label>
+        <input type="text" name="note" placeholder="ex. pour l’entrée des mariés" autocomplete="off">
+        <button class="btn" style="width:100%;margin-top:12px">Enregistrer</button>
+      </form>
+      <a class="btn ghost" href="/" style="display:block;text-align:center;margin-top:10px;text-decoration:none">Voir toutes les propositions</a>
+    </div>
+  </div>
+</div>
+<script>
+// Page cible du « Partager » Android (Web Share Target, GET ?title&text&url).
+(async () => {
+  const q = new URLSearchParams(location.search);
+  const shared = [q.get('url'), q.get('text'), q.get('title')].filter(Boolean).join(' ');
+  const $m = document.getElementById('msg'), $f = document.getElementById('extra');
+  if (!shared) { $m.textContent = 'Aucun lien reçu.'; return; }
+  const post = (path, data, method = 'POST') => fetch(path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(async (r) => ({ ok: r.ok, status: r.status, j: await r.json().catch(() => ({})) }));
+  const r = await post('/api/submit', { text: shared });
+  if (r.status === 401) {
+    try { localStorage.setItem('choreo_pending', shared); } catch {}
+    $m.textContent = 'Connecte-toi d’abord, le reel sera ajouté juste après…';
+    setTimeout(() => location.replace('/'), 1200); return;
+  }
+  if (!r.ok) { $m.textContent = '⚠️ ' + (r.j.error || 'Erreur'); return; }
+  $m.textContent = r.j.message;
+  const reel = r.j.reel;
+  if (r.j.status !== 'already') {
+    if (reel.music) $f.music.closest('form').querySelector('label').style.display = $f.music.style.display = 'none';
+    $f.style.display = 'block';
+    $f.onsubmit = async (e) => {
+      e.preventDefault();
+      if ($f.music.value.trim()) await post('/api/reels', { id: reel.id, music: $f.music.value }, 'PATCH');
+      if ($f.note.value.trim()) await post('/api/submit', { url: reel.url, note: $f.note.value });
+      location.replace('/');
+    };
+  }
+})();
+</script>
+</body>
+</html>

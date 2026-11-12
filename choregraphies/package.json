@@ -1,0 +1,13 @@
+{
+  "name": "choregraphies-mariage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Partage de reels Instagram pour préparer les chorés du mariage : votes danse/musique, validation admin, détection des doublons.",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.41.0"
+  }
+}
