@@ -53,10 +53,26 @@ function findKey(obj, key, depth = 0) {
   for (const v of Object.values(obj)) { const r = findKey(v, key, depth + 1); if (r != null) return r; }
   return null;
 }
+export const decodeEntities = (s) => String(s ?? '')
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+  .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const meta = (html, prop) => {
   const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']*)["']`, 'i'));
-  return m ? m[1].replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&amp;/g, '&') : null;
+  return m ? decodeEntities(m[1]) : null;
 };
+
+// Télécharge une image (aperçu) ; null si indisponible.
+export async function fetchImage(url) {
+  if (!url) return null;
+  try {
+    const r = await fetchT(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, 6000);
+    const type = r.headers.get('content-type') || '';
+    if (!r.ok || !type.startsWith('image/')) return null;
+    const buf = Buffer.from(await r.arrayBuffer());
+    return buf.length ? { type, buf } : null;
+  } catch { return null; }
+}
 
 // Chaque source est optionnelle et échoue en silence : on garde ce qu'on obtient.
 export async function enrich(link) {

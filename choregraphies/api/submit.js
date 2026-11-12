@@ -4,6 +4,7 @@ import { route, body, HttpError } from '../lib/http.js';
 import { requireUser } from '../lib/auth.js';
 import { parseLink, resolveShortLink, enrich } from '../lib/media.js';
 import { getReel, saveReel } from '../lib/reels.js';
+import { normCategory } from '../lib/categories.js';
 
 export default route(['POST'], async (req, res) => {
   const user = await requireUser(req);
@@ -14,6 +15,7 @@ export default route(['POST'], async (req, res) => {
 
   const music = String(b.music || '').trim().slice(0, 150) || null;
   const note = String(b.note || '').trim().slice(0, 300) || null;
+  const category = normCategory(b.category);
   const existing = await getReel(link.id);
 
   if (existing) {
@@ -22,6 +24,7 @@ export default route(['POST'], async (req, res) => {
     if (!already) existing.proposers.push({ pseudo: user.pseudo, at: Date.now(), note });
     else if (note) mine.note = note;
     if (music && !existing.music) existing.music = music;
+    if (category && !existing.category) existing.category = category;
     await saveReel(existing);
     const others = existing.proposers.filter((p) => p.pseudo !== user.pseudo).map((p) => '@' + p.pseudo);
     return res.json({
@@ -33,7 +36,7 @@ export default route(['POST'], async (req, res) => {
 
   const info = await enrich(link);
   const reel = {
-    ...link, ...info, music: music || info.music,
+    ...link, ...info, music: music || info.music, category,
     status: 'pending', proposers: [{ pseudo: user.pseudo, at: Date.now(), note }], aliases: [], createdAt: Date.now(),
   };
   await saveReel(reel);

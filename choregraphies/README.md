@@ -80,14 +80,27 @@ api/            fonctions serverless Vercel
   auth.js       inscription / connexion / déconnexion / moi
   submit.js     réception d’un partage (Android, Raccourci iPhone, formulaire)
   reels.js      liste + correction de la musique
-  vote.js       votes danse / musique
+  vote.js       likes danse / musique
+  comments.js   commentaires (ajout, suppression par l’auteur ou l’admin)
+  thumb.js      aperçu du reel, mis en cache dans la base (les liens Instagram expirent)
   admin.js      valider / refuser / fusionner / supprimer
 lib/            db (Upstash ou mémoire), auth, reconnaissance des liens, modèle
 public/         interface (HTML/CSS/JS sans framework), manifest, service worker, page /share
 scripts/dev-server.mjs   serveur local qui imite Vercel
 ```
 
-## 6. Intégrer plus tard au site du mariage
+## 6. Fonctionnement de l’appli
+- **Accueil** : chaque carte montre l’aperçu du reel (touche-le pour ouvrir Instagram) et permet de **voter directement** 👍 ou 👎 pour la musique, la choré et la vibe. La liste des idées, avec les onglets À noter, Toutes, Mes idées et Retenues, et un filtre par type (Couple, Filles, Garçons, Groupe, Sans type). Chaque carte affiche le type, la musique, qui l’a proposée (badge « Proposée 2× » pour un doublon), 3 jauges Musique, Choré et Vibe, et le dernier commentaire.
+- **Page d’une idée** :
+  - le bouton « Regarder sur Instagram » ouvre l’app Instagram ;
+  - **ton avis** : J’aime ou Pas fan, pour la musique, la choré et la vibe ;
+  - **l’avis du groupe** : qui aime, qui n’aime pas, qui n’a pas encore noté ;
+  - le **type de danse**, modifiable par la personne qui a proposé ou par l’admin ;
+  - les **commentaires** ;
+  - pour l’admin : retenir, écarter, regrouper un doublon, supprimer.
+- **Profil** (avatar en haut à droite) : statistiques, membres, guide de partage, déconnexion.
+
+## 7. Intégrer plus tard au site du mariage
 - Toutes les clés Redis sont préfixées par `choreo:`, donc la même base peut servir au site mariage sans collision.
 - Il suffit de recopier `api/` et `lib/`, puis d’intégrer `public/app.js` dans une page du site, ou de garder la page telle quelle sous `/chores`.
 - Si le site mariage a déjà ses comptes, remplace `currentUser()` dans `lib/auth.js` par sa propre authentification. Le reste ne change pas.

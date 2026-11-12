@@ -1,6 +1,7 @@
 // Modèle de données des propositions.
 // reel:{id}  -> { id, platform, code, url, author, caption, music, thumbnail, status, proposers:[{pseudo,at,note}], aliases:[], createdAt }
-// votes:{id} -> hash pseudo -> { dance: 1|-1|0, music: 1|-1|0 }
+// votes:{id} -> hash pseudo -> { dance, music, vibe : 1|-1|0 }
+// comments:{id} -> [{ id, pseudo, text, at }]
 // reels      -> set des ids ; alias:{id} -> id cible (après une fusion)
 import * as db from './db.js';
 import { normMusic } from './media.js';
@@ -21,20 +22,23 @@ export async function saveReel(reel) {
 export async function deleteReel(id) {
   await db.del(`reel:${id}`);
   await db.del(`votes:${id}`);
+  await db.del(`comments:${id}`);
+  await db.del(`thumb:${id}`);
   await db.srem('reels', id);
 }
 
 function tally(votes, pseudo) {
-  const t = { dance: { up: [], down: [] }, music: { up: [], down: [] }, mine: { dance: 0, music: 0 }, voters: [] };
+  const K = ['music', 'dance', 'vibe'];
+  const t = { dance: { up: [], down: [] }, music: { up: [], down: [] }, vibe: { up: [], down: [] }, mine: { dance: 0, music: 0, vibe: 0 }, voters: [] };
   for (const [p, v] of Object.entries(votes || {})) {
-    for (const k of ['dance', 'music']) {
+    for (const k of K) {
       if (v?.[k] === 1) t[k].up.push(p);
       if (v?.[k] === -1) t[k].down.push(p);
     }
-    if (v?.dance || v?.music) t.voters.push(p);
-    if (p === pseudo) t.mine = { dance: v?.dance || 0, music: v?.music || 0 };
+    if (K.some((k) => v?.[k])) t.voters.push(p);
+    if (p === pseudo) t.mine = { dance: v?.dance || 0, music: v?.music || 0, vibe: v?.vibe || 0 };
   }
-  t.score = t.dance.up.length - t.dance.down.length + (t.music.up.length - t.music.down.length) * 0.5;
+  t.score = K.reduce((s, k) => s + t[k].up.length - t[k].down.length, 0);
   return t;
 }
 
@@ -42,7 +46,8 @@ export async function listReels(pseudo) {
   const ids = await db.smembers('reels');
   const reels = (await db.mget(ids.map((i) => `reel:${i}`))).filter(Boolean);
   const votes = await Promise.all(reels.map((r) => db.hgetall(`votes:${r.id}`)));
-  const list = reels.map((r, i) => ({ ...r, votes: tally(votes[i], pseudo) }));
+  const comments = await db.mget(reels.map((r) => `comments:${r.id}`));
+  const list = reels.map((r, i) => ({ ...r, votes: tally(votes[i], pseudo), comments: comments[i] || [] }));
   // Même musique sur des reels différents : on le signale (sans fusionner).
   const byMusic = {};
   for (const r of list) { const k = normMusic(r.music); if (k) (byMusic[k] ||= []).push(r.id); }
@@ -61,6 +66,12 @@ export async function mergeReels(fromId, intoId) {
   const iv = await db.hgetall(`votes:${intoId}`);
   for (const [p, v] of Object.entries(fv)) if (!iv[p]) await db.hset(`votes:${intoId}`, p, v);
   for (const a of into.aliases) await db.set(`alias:${a}`, intoId);
+  into.category ||= from.category;
+  const fc = (await db.get(`comments:${fromId}`)) || [];
+  if (fc.length) {
+    const ic = (await db.get(`comments:${intoId}`)) || [];
+    await db.set(`comments:${intoId}`, [...ic, ...fc].sort((a, b) => a.at - b.at));
+  }
   await saveReel(into);
   await deleteReel(fromId);
   return into;

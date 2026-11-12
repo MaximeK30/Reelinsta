@@ -1,7 +1,7 @@
 // Service worker minimal : rend le site installable (condition du menu Partager Android)
 // et garde l'interface dispo hors ligne. L'API n'est jamais mise en cache.
-const CACHE = 'choreo-v1';
-const SHELL = ['/', '/index.html', '/app.js', '/style.css', '/share.html', '/manifest.webmanifest', '/icons/icon-192.png'];
+const CACHE = 'choreo-v2';
+const SHELL = ['/', '/index.html', '/app.js', '/style.css', '/share.html', '/manifest.webmanifest', '/icons/icon-192.png', '/fonts/bodoni-moda.woff2', '/fonts/bodoni-moda-italic.woff2', '/fonts/jost.woff2'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', (e) => {

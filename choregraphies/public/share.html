@@ -3,54 +3,71 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#faf6ef">
-<title>Partager vers Chorés</title>
+<meta name="theme-color" content="#0a0809">
+<meta name="color-scheme" content="dark">
+<title>Proposer une danse</title>
 <link rel="stylesheet" href="/style.css">
+<style>
+  .s-wrap{min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:calc(var(--safe-t) + 30px) var(--pad) calc(30px + var(--safe-b));max-width:560px;margin:0 auto}
+  .s-wrap .mono{width:60px;height:60px;margin-bottom:26px}
+  .s-wrap h1{font-size:clamp(32px,9vw,44px);line-height:1.08;margin:12px 0 0}
+  .s-msg{color:var(--soft);margin-top:14px;font-size:16px}
+  .s-wrap form{margin-top:10px}
+  .s-wrap .row2{display:grid;gap:10px;margin-top:22px}
+  .eyebrow{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  .s-wrap{text-align:left}
+</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="auth" style="margin-top:12vh">
-    <h1>Chorés</h1>
-    <div class="panel" style="margin-top:16px">
-      <div id="msg" style="font-size:16px;font-weight:600">Envoi en cours…</div>
-      <form id="extra" style="display:none;margin-top:12px">
-        <label>🎵 Musique (si elle n’a pas été trouvée)</label>
-        <input type="text" name="music" placeholder="Titre — Artiste" autocomplete="off">
-        <label>💬 Un mot ?</label>
-        <input type="text" name="note" placeholder="ex. pour l’entrée des mariés" autocomplete="off">
-        <button class="btn" style="width:100%;margin-top:12px">Enregistrer</button>
-      </form>
-      <a class="btn ghost" href="/" style="display:block;text-align:center;margin-top:10px;text-decoration:none">Voir toutes les propositions</a>
-    </div>
-  </div>
-</div>
+<main class="s-wrap">
+  <svg class="mono" viewBox="0 0 100 100" aria-hidden="true"><text x="50" y="66" text-anchor="middle" font-size="46" fill="currentColor" letter-spacing="-1.5">M<tspan font-style="italic" fill="#c9667f" font-size="32" dx="-2" dy="-1.5">&amp;</tspan><tspan dx="-2" dy="1.5">H</tspan></text></svg>
+  <div class="eyebrow">Les danses du mariage</div>
+  <h1 id="title">Envoi en cours…</h1>
+  <p class="s-msg" id="msg"></p>
+  <form id="extra" hidden>
+    <div class="field" id="f-cat"><label>Type de danse</label><div class="catrow">
+      <button type="button" class="cat" data-v="couple"><span class="e">💞</span>Couple</button>
+      <button type="button" class="cat" data-v="filles"><span class="e">💃</span>Filles</button>
+      <button type="button" class="cat" data-v="garcons"><span class="e">🕺</span>Garçons</button>
+      <button type="button" class="cat" data-v="groupe"><span class="e">👯</span>Groupe</button>
+    </div></div>
+    <div class="field" id="f-music"><label for="m">Musique</label><input id="m" type="text" name="music" placeholder="Titre — Artiste" autocomplete="off"></div>
+    <div class="field"><label for="n">Un mot <span style="text-transform:none;letter-spacing:0">(facultatif)</span></label><input id="n" type="text" name="note" placeholder="Pour l’entrée des mariés…" autocomplete="off"></div>
+    <div class="row2"><button class="btn">Enregistrer</button></div>
+  </form>
+  <div class="row2"><a class="btn ghost" href="/">Voir le fil</a></div>
+</main>
 <script>
-// Page cible du « Partager » Android (Web Share Target, GET ?title&text&url).
+// Cible du « Partager » Android (Web Share Target) et du lien ?text= / ?url=.
 (async () => {
   const q = new URLSearchParams(location.search);
   const shared = [q.get('url'), q.get('text'), q.get('title')].filter(Boolean).join(' ');
-  const $m = document.getElementById('msg'), $f = document.getElementById('extra');
-  if (!shared) { $m.textContent = 'Aucun lien reçu.'; return; }
-  const post = (path, data, method = 'POST') => fetch(path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(async (r) => ({ ok: r.ok, status: r.status, j: await r.json().catch(() => ({})) }));
-  const r = await post('/api/submit', { text: shared });
+  const $t = document.getElementById('title'), $m = document.getElementById('msg'), $f = document.getElementById('extra');
+  if (!shared) { $t.textContent = 'Aucun lien reçu'; return; }
+  const call = (path, data, method = 'POST') => fetch(path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(async (r) => ({ ok: r.ok, status: r.status, j: await r.json().catch(() => ({})) }));
+  const r = await call('/api/submit', { text: shared });
   if (r.status === 401) {
     try { localStorage.setItem('choreo_pending', shared); } catch {}
-    $m.textContent = 'Connecte-toi d’abord, le reel sera ajouté juste après…';
-    setTimeout(() => location.replace('/'), 1200); return;
+    $t.textContent = 'Connecte-toi d’abord'; $m.textContent = 'Le reel sera ajouté juste après.';
+    setTimeout(() => location.replace('/'), 1400); return;
   }
-  if (!r.ok) { $m.textContent = '⚠️ ' + (r.j.error || 'Erreur'); return; }
-  $m.textContent = r.j.message;
-  const reel = r.j.reel;
-  if (r.j.status !== 'already') {
-    if (reel.music) $f.music.closest('form').querySelector('label').style.display = $f.music.style.display = 'none';
-    $f.style.display = 'block';
-    $f.onsubmit = async (e) => {
-      e.preventDefault();
-      if ($f.music.value.trim()) await post('/api/reels', { id: reel.id, music: $f.music.value }, 'PATCH');
-      if ($f.note.value.trim()) await post('/api/submit', { url: reel.url, note: $f.note.value });
-      location.replace('/');
-    };
-  }
+  if (!r.ok) { $t.textContent = 'Oups'; $m.textContent = r.j.error || 'Erreur'; return; }
+  const st = r.j.status, reel = r.j.reel;
+  $t.textContent = st === 'created' ? 'Danse proposée' : st === 'duplicate' ? 'Déjà proposée' : 'Déjà dans ta liste';
+  $m.textContent = r.j.message.replace(/^Ajouté ✓\s*/, '');
+  if (st === 'already') return;
+  if (reel.music) document.getElementById('f-music').remove();
+  let category = reel.category || null;
+  if (category && st !== 'created') document.getElementById('f-cat').remove();
+  $f.querySelectorAll('.cat').forEach((b) => { b.classList.toggle('on', b.dataset.v === category); b.onclick = () => { category = category === b.dataset.v ? null : b.dataset.v; $f.querySelectorAll('.cat').forEach((x) => x.classList.toggle('on', x.dataset.v === category)); }; });
+  $f.hidden = false;
+  $f.onsubmit = async (e) => {
+    e.preventDefault();
+    const music = $f.music?.value.trim(), note = $f.note.value.trim();
+    if (music || category !== (reel.category || null)) await call('/api/reels', { id: reel.id, ...(music ? { music } : {}), ...(category !== (reel.category || null) ? { category } : {}) }, 'PATCH');
+    if (note) await call('/api/submit', { url: reel.url, note });
+    location.replace('/');
+  };
 })();
 </script>
 </body>
