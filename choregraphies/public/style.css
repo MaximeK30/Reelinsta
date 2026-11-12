@@ -362,3 +362,12 @@ code{font:13px ui-monospace,Menlo,monospace;color:var(--blush)}
 .vdet .w{background:transparent;border:1px dashed var(--line2);color:var(--faint)}
 .page>.lp.big{margin-top:6px}
 .top .mono{width:52px;height:52px;margin:-4px -4px -4px -6px}
+
+/* ——— Nouveautés ——— */
+.newbar{display:flex;align-items:center;gap:10px;width:calc(100% - 2*var(--pad));margin:14px var(--pad) 0;padding:12px 14px;border-radius:16px;background:linear-gradient(135deg,rgba(214,182,133,.18),rgba(226,117,144,.14));border:1px solid rgba(214,182,133,.35);text-align:left;font-size:14px;color:var(--soft);animation:in .4s var(--ease) both}
+.newbar span{flex:1;min-width:0}
+.newbar b{font-weight:500;color:var(--text)}
+.newbar em{flex:none;font-style:normal;font-weight:500;color:var(--gold);font-size:13.5px}
+.newbar.on{background:var(--card);border-style:dashed}
+.pill.new{flex:none;background:linear-gradient(135deg,#d6b685,#c9937a);color:#1a1214}
+.card.new{border-color:rgba(214,182,133,.45);box-shadow:0 0 0 1px rgba(214,182,133,.15),0 10px 30px -12px rgba(214,182,133,.25)}

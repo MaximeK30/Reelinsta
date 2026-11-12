@@ -47,7 +47,12 @@ export async function listReels(pseudo) {
   const reels = (await db.mget(ids.map((i) => `reel:${i}`))).filter(Boolean);
   const votes = await Promise.all(reels.map((r) => db.hgetall(`votes:${r.id}`)));
   const comments = await db.mget(reels.map((r) => `comments:${r.id}`));
-  const list = reels.map((r, i) => ({ ...r, votes: tally(votes[i], pseudo), comments: comments[i] || [] }));
+  const seen = new Set(pseudo ? await db.smembers(`seen:${pseudo}`) : []);
+  const list = reels.map((r, i) => ({
+    ...r, votes: tally(votes[i], pseudo), comments: comments[i] || [],
+    // « vu » : déjà affiché à cet utilisateur (ou proposé par lui, ou un doublon fusionné qu'il avait vu)
+    seen: seen.has(r.id) || (r.aliases || []).some((a) => seen.has(a)) || r.proposers.some((p) => p.pseudo === pseudo),
+  }));
   // Même musique sur des reels différents : on le signale (sans fusionner).
   const byMusic = {};
   for (const r of list) { const k = normMusic(r.music); if (k) (byMusic[k] ||= []).push(r.id); }

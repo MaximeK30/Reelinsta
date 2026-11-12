@@ -10,7 +10,7 @@
   const S = {
     user: null, members: [], reels: [], demo: false, authTab: 'login',
     view: 'list', id: null, editMusic: false, listY: 0,
-    tab: store.get('choreo_tab3', 'todo'), cat: 'all', sort: 'recent', open: new Set(),
+    tab: store.get('choreo_tab3', 'todo'), cat: 'all', sort: 'recent', open: new Set(), newIds: new Set(), onlyNew: false,
   };
 
   /* ——— Utilitaires ——— */
@@ -67,13 +67,19 @@
   async function load() {
     const m = await api('/api/auth');
     S.user = m.user; S.members = m.members || []; S.demo = m.demo;
-    if (S.user) { S.reels = (await api('/api/reels')).reels; await flushPending(); }
+    if (S.user) { S.reels = (await api('/api/reels')).reels; await flushPending(); computeNew(true); }
     render();
+  }
+  // « Nouveau » = jamais affiché à cet utilisateur. Le badge reste pendant toute la visite.
+  function computeNew(reset) {
+    if (reset) { S.newIds = new Set(); S.onlyNew = false; }
+    for (const r of S.reels) if (!r.seen) S.newIds.add(r.id);
+    for (const id of [...S.newIds]) if (!byId(id)) S.newIds.delete(id);
   }
   async function refresh() {
     if (!S.user) return load();
     const [rl, m] = await Promise.all([api('/api/reels'), api('/api/auth')]);
-    S.reels = rl.reels; S.members = m.members || S.members; render();
+    S.reels = rl.reels; S.members = m.members || S.members; computeNew(false); render();
   }
   async function flushPending() {
     let p = null; try { p = localStorage.getItem('choreo_pending'); localStorage.removeItem('choreo_pending'); } catch {}
@@ -109,12 +115,36 @@
   window.addEventListener('popstate', (e) => { const st = e.state || { view: 'list' }; if (S.user) go(st.view || 'list', st.id, { push: false }); });
   history.replaceState({ view: 'list' }, '');
 
+  /* ——— Marquer comme « vu » ——— */
+  const toMark = new Set(); let markT = null;
+  function markSeen(id) {
+    const r = byId(id); if (!r || r.seen) return;
+    r.seen = true; toMark.add(id);
+    clearTimeout(markT); markT = setTimeout(flushSeen, 1200);
+  }
+  function flushSeen() { if (!toMark.size) return; const ids = [...toMark]; toMark.clear(); api('/api/seen', { method: 'POST', data: { ids } }).catch(() => ids.forEach((i) => toMark.add(i))); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) flushSeen(); });
+  const timers = new Map();
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver((ents) => {
+    for (const e of ents) {
+      const id = e.target.dataset.id;
+      if (e.isIntersecting) { if (!timers.has(id)) timers.set(id, setTimeout(() => { markSeen(id); timers.delete(id); }, 1000)); }
+      else { clearTimeout(timers.get(id)); timers.delete(id); }
+    }
+  }, { threshold: 0.5 }) : null;
+  function observeCards() {
+    if (!io) return; io.disconnect(); timers.forEach(clearTimeout); timers.clear();
+    document.querySelectorAll('.card[data-id]').forEach((c) => { if (!byId(c.dataset.id)?.seen) io.observe(c); });
+  }
+
   function render() {
     if (!S.user) return renderAuth();
     const V = { list: viewList, idea: viewIdea, add: viewAdd, me: viewMe }[S.view] || viewList;
     if (S.view === 'idea' && !byId(S.id)) { S.view = 'list'; }
     $app.innerHTML = (S.view === 'idea' && !byId(S.id)) ? viewList() : V();
     tick();
+    if (S.view === 'list') observeCards();
+    if (S.view === 'idea') markSeen(S.id);
   }
 
   /* ——— Liste ——— */
@@ -155,10 +185,12 @@
     const last = cms[cms.length - 1];
     const props = r.proposers.map((p) => p.pseudo);
     const cat = CATS[r.category];
-    return `<article class="card ${todo ? 'todo' : ''} ${r.status === 'rejected' ? 'rej' : ''}">
+    const isNew = S.newIds.has(r.id);
+    return `<article class="card ${todo ? 'todo' : ''} ${isNew ? 'new' : ''} ${r.status === 'rejected' ? 'rej' : ''}" data-id="${r.id}">
       <button class="cwho" data-a="open" data-id="${r.id}">
         <span class="stack">${props.slice(0, 3).map((p) => av(p, 'sm')).join('')}</span>
         <span class="cw"><b>${esc(listFr(props))}</b> ${props.length > 1 ? 'ont proposé' : 'a proposé'}<small>${ago(r.createdAt)}</small></span>
+        ${isNew ? '<span class="pill new">✨ Nouveau</span>' : ''}
         ${r.status === 'validated' ? `<span class="pill kept">${I.star} Retenue</span>` : r.status === 'rejected' ? '<span class="pill rej">Écartée</span>' : ''}
       </button>
       ${preview(r)}
@@ -173,9 +205,9 @@
     const T = { todo: (r) => !ratedAll(r) && r.status !== 'rejected', all: () => true, mine: isMine, others: (r) => !isMine(r), kept: (r) => r.status === 'validated' };
     const n = (k) => base.filter(T[k]).length;
     const inCat = (r) => S.cat === 'all' || (S.cat === 'none' ? !r.category : r.category === S.cat);
-    let list = base.filter(T[S.tab] || T.all).filter(inCat);
+    let list = (S.onlyNew ? base.filter((r) => S.newIds.has(r.id)) : base.filter(T[S.tab] || T.all)).filter(inCat);
     list = list.sort(S.sort === 'top' ? (a, b) => b.votes.score - a.votes.score || b.createdAt - a.createdAt : (a, b) => b.createdAt - a.createdAt);
-    const tab = (k, l) => `<button class="${S.tab === k ? 'on' : ''}" data-a="tab" data-v="${k}">${l}${k === 'todo' && n(k) ? `<i>${n(k)}</i>` : ''}</button>`;
+    const tab = (k, l) => `<button class="${S.tab === k && !S.onlyNew ? 'on' : ''}" data-a="tab" data-v="${k}">${l}${k === 'todo' && n(k) ? `<i>${n(k)}</i>` : ''}</button>`;
     const tcount = (k) => base.filter(T[S.tab] || T.all).filter((r) => k === 'none' ? !r.category : r.category === k).length;
     const tchip = (k, l) => `<button class="tchip ${S.cat === k ? 'on' : ''}" data-a="cat" data-v="${k}">${l}${k !== 'all' ? ` <small>${tcount(k)}</small>` : ''}</button>`;
     const c = cd();
@@ -184,6 +216,9 @@
       <div class="top">${MONO()}<div class="t"><small>${esc(CONFIG.names[0])} & ${esc(CONFIG.names[1])}</small><b>Nos idées de danses</b></div><button data-a="me" aria-label="Mon profil">${av(me())}</button></div>
       ${S.demo ? '<div class="banner">Mode démo : aucune base connectée, rien n’est conservé.</div>' : ''}
       <div class="count"><div class="d"><span data-cd="d">${c.d}</span><small>jours</small></div><div class="x">avant le 21 août 2027 💍<span data-cd="hms"></span></div></div>
+      ${(() => { const nn = base.filter((r) => S.newIds.has(r.id)).length; if (!nn) return ''; return S.onlyNew
+        ? `<button class="newbar on" data-a="onlynew">✨ <span><b>${nn} nouveauté${nn > 1 ? 's' : ''}</b> affichée${nn > 1 ? 's' : ''}</span><em>Tout afficher</em></button>`
+        : `<button class="newbar" data-a="onlynew">✨ <span><b>${nn} nouvelle${nn > 1 ? 's' : ''} idée${nn > 1 ? 's' : ''}</b> depuis ta dernière visite</span><em>Voir</em></button>`; })()}
       <div class="seg">${tab('todo', 'À noter')}${tab('all', 'Toutes')}${tab('mine', 'De moi')}${tab('others', 'Des autres')}${tab('kept', 'Retenues')}</div>
       <div class="types">${tchip('all', 'Tous les types')}${Object.entries(CATS).map(([k, [e, l]]) => tchip(k, `${e} ${l}`)).join('')}${tchip('none', 'Sans type')}</div>
       <div class="bar"><span>${list.length} idée${list.length > 1 ? 's' : ''}</span><button class="sort" data-a="sort">${I.sort}${S.sort === 'top' ? 'Les mieux notées' : 'Les plus récentes'}</button></div>
@@ -334,6 +369,7 @@
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now();
+    else if (S.user && hiddenAt && Date.now() - hiddenAt > 30 * 60000) load().catch(() => {}); // nouveau passage : on repart de zéro
     else if (S.user && Date.now() - hiddenAt > 10000 && !document.activeElement?.matches('input')) refresh().catch(() => {});
   });
 
@@ -356,8 +392,9 @@
     try {
       switch (a) {
         case 'authtab': S.authTab = v; return renderAuth();
+        case 'onlynew': S.onlyNew = !S.onlyNew; window.scrollTo(0, 0); return render();
         case 'tab': {
-          S.tab = v; store.set('choreo_tab3', v); keepY(render);
+          S.onlyNew = false; S.tab = v; store.set('choreo_tab3', v); keepY(render);
           // garde l'onglet choisi visible dans la barre (défilement horizontal seulement)
           const seg = document.querySelector('.seg'), on = seg?.querySelector('.on');
           if (seg && on && seg.scrollWidth > seg.clientWidth) seg.scrollLeft = on.offsetLeft - (seg.clientWidth - on.offsetWidth) / 2;

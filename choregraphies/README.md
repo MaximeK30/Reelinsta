@@ -82,6 +82,7 @@ api/            fonctions serverless Vercel
   reels.js      liste + correction de la musique
   vote.js       likes danse / musique
   comments.js   commentaires (ajout, suppression par l’auteur ou l’admin)
+  seen.js       idées déjà vues par chaque membre (badge « Nouveau »)
   thumb.js      aperçu du reel, mis en cache dans la base (les liens Instagram expirent)
   admin.js      valider / refuser / fusionner / supprimer
 lib/            db (Upstash ou mémoire), auth, reconnaissance des liens, modèle
@@ -98,6 +99,7 @@ scripts/dev-server.mjs   serveur local qui imite Vercel
   - le **type de danse**, modifiable par la personne qui a proposé ou par l’admin ;
   - les **commentaires** ;
   - pour l’admin : retenir, écarter, regrouper un doublon, supprimer.
+- **Nouveautés** : une idée jamais affichée à l’écran porte un badge « ✨ Nouveau » et une bannière en haut les compte. Elle devient « vue » dès qu’elle reste affichée une seconde ou qu’on l’ouvre (suivi par compte, sur tous les téléphones). Le badge reste visible pendant la visite et disparaît à la suivante.
 - **Profil** (avatar en haut à droite) : statistiques, membres, guide de partage, déconnexion.
 
 ## 7. Intégrer plus tard au site du mariage
